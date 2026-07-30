@@ -1,6 +1,8 @@
 provider "aws" {
-  region  = var.region
-  profile = var.aws_profile
+  region = var.region
+  assume_role {
+    role_arn = "arn:aws:iam::679011636100:role/${var.deploy_role}"
+  }
 }
 
 terraform {
@@ -21,8 +23,8 @@ variable "project" {
   default = "atx-receipts"
 }
 
-variable "aws_profile" {
-  default = "personal-sapc01"
+variable "deploy_role" {
+  default = "ladoumi-deployment-role"
 }
 
 # --- DynamoDB Tables ---
