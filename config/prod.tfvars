@@ -1,0 +1,13 @@
+env                  = "prod"
+region               = "eu-west-1"
+devops_account_id    = "363475792261"
+deploy_role          = "ladoumi-deployment-role"
+owner                = "ladoumi"
+repository           = "ladoumi-prereqs"
+project              = "ladoumi"
+cust_name            = "ladoumi"
+pipelines_repository = "ladoumi-cicd-pipelines"
+artifact_bucket_name = "ladoumi-cicd-artifact"
+build_image          = "aws/codebuild/standard:5.0"
+connection_arn       = "arn:aws:codeconnections:eu-west-1:363475792261:connection/f7d2462d-509f-4950-bc42-23bec670e771"  # ladoumi-github-connection, devops account, eu-west-1
+github_org           = "Bakoya" 
