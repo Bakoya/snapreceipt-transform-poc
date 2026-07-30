@@ -1,0 +1,25 @@
+version: 0.2
+
+env:
+  variables:
+    TF_VERSION: "1.4.0"
+
+phases:
+
+  install:
+    commands:
+      - cd /usr/bin
+      - "curl -s -qL -o terraform.zip https://releases.hashicorp.com/terraform/${TF_VERSION}/terraform_${TF_VERSION}_linux_amd64.zip"
+      - unzip -o terraform.zip
+
+  build:
+    commands:   
+      - cd "$CODEBUILD_SRC_DIR"
+      - terraform init -no-color
+      - sed -i -e "s/{{env}}/$TF_VAR_ENV/" backend.tf
+      - terraform init -reconfigure  -no-color && terraform $TF_ACTION -no-color  -var-file="config/$TF_VAR_ENV.tfvars"
+
+
+  post_build:
+    commands:
+      - echo "terraform $TF_ACTION on $TF_VAR_ENV completed on `date`"
