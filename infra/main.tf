@@ -18,7 +18,7 @@ variable "region" {
 }
 
 variable "project" {
-  default = "receipts"
+  default = "atx-receipts"
 }
 
 variable "aws_profile" {
