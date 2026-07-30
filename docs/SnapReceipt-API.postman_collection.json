@@ -7,12 +7,12 @@
   "variable": [
     {
       "key": "base_url",
-      "value": "https://wrirb3mgo3.execute-api.eu-west-1.amazonaws.com",
+      "value": "https://fl5kzirzob.execute-api.eu-west-1.amazonaws.com",
       "type": "string"
     },
     {
       "key": "api_key",
-      "value": "rt_U9Yeb8r5myIcUXHERRKVSK9jjdvq12ijOL_G6KVKDuk",
+      "value": "",
       "type": "string"
     },
     {
