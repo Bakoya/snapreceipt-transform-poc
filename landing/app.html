@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SnapReceipt — Track Your Spending</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f0f2f5; color: #1a1a2e; }
+
+    /* Login & Signup */
+    .auth-screen { display: flex; align-items: center; justify-content: center; min-height: 100vh; background: linear-gradient(135deg, #667eea, #764ba2); }
+    .auth-box { background: white; border-radius: 16px; padding: 48px 40px; width: 420px; text-align: center; }
+    .auth-box h1 { font-size: 1.8rem; margin-bottom: 8px; }
+    .auth-box p { color: #777; margin-bottom: 24px; }
+    .auth-box input { width: 100%; padding: 14px 16px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 1rem; margin-bottom: 12px; outline: none; }
+    .auth-box input:focus { border-color: #764ba2; }
+    .auth-box button { width: 100%; padding: 14px; background: #764ba2; color: white; border: none; border-radius: 8px; font-size: 1rem; font-weight: 600; cursor: pointer; margin-bottom: 12px; }
+    .auth-box button:hover { background: #6a3f9e; }
+    .auth-box .toggle { color: #764ba2; cursor: pointer; font-size: 0.9rem; }
+    .auth-box .error { color: #e53e3e; font-size: 0.9rem; margin-top: 8px; }
+    .auth-box .success { color: #38a169; font-size: 0.9rem; margin-top: 8px; }
+
+    /* App Layout */
+    .app { display: none; }
+    .topbar { background: #764ba2; color: white; padding: 16px 24px; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 100; }
+    .topbar .logo { font-weight: 700; font-size: 1.2rem; }
+    .topbar nav a { color: rgba(255,255,255,0.8); text-decoration: none; margin-left: 20px; font-size: 0.95rem; }
+    .topbar nav a:hover, .topbar nav a.active { color: white; }
+    .topbar .logout { color: rgba(255,255,255,0.6); cursor: pointer; font-size: 0.9rem; margin-left: 20px; }
+
+    .container { max-width: 900px; margin: 0 auto; padding: 24px 16px; }
+    .page { display: none; }
+    .page.active { display: block; }
+
+    /* Upload Area */
+    .upload-area { background: white; border: 3px dashed #d0d0d0; border-radius: 16px; padding: 48px 24px; text-align: center; margin-bottom: 24px; cursor: pointer; transition: border-color 0.2s; }
+    .upload-area:hover { border-color: #764ba2; }
+    .upload-area.dragging { border-color: #764ba2; background: #f8f5ff; }
+    .upload-area .icon { font-size: 3rem; margin-bottom: 12px; }
+    .upload-area p { color: #888; }
+    .upload-area input { display: none; }
+    .upload-area .processing { color: #764ba2; font-weight: 600; }
+
+    /* Cards */
+    .stat-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 24px; }
+    .stat-card { background: white; border-radius: 12px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+    .stat-card .label { color: #888; font-size: 0.8rem; margin-bottom: 4px; }
+    .stat-card .value { font-size: 1.6rem; font-weight: 700; }
+    .chart-card { background: white; border-radius: 12px; padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); margin-bottom: 24px; }
+    .chart-card h3 { margin-bottom: 16px; font-size: 1.1rem; }
+
+    /* Receipt List */
+    .receipt-card { background: white; border-radius: 12px; padding: 16px 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; }
+    .receipt-card .info h4 { margin-bottom: 2px; }
+    .receipt-card .info .meta { color: #888; font-size: 0.85rem; }
+    .receipt-card .right { text-align: right; }
+    .receipt-card .amount { font-size: 1.2rem; font-weight: 700; }
+    .receipt-card .cat { display: inline-block; padding: 2px 10px; border-radius: 12px; font-size: 0.75rem; font-weight: 600; background: #e9ecef; color: #555; margin-top: 4px; }
+    .receipt-card .cat.Groceries { background: #c6f6d5; color: #276749; }
+    .receipt-card .cat.Restaurant { background: #fefcbf; color: #975a16; }
+    .receipt-card .cat.Transport { background: #bee3f8; color: #2a4365; }
+    .receipt-card .cat.Shopping { background: #fed7e2; color: #97266d; }
+    .receipt-card .cat.Health { background: #c4f1f9; color: #234e52; }
+    .receipt-card .delete-btn { background: none; border: none; color: #ccc; cursor: pointer; font-size: 1.2rem; padding: 4px 8px; }
+    .receipt-card .delete-btn:hover { color: #e53e3e; }
+
+    .empty { text-align: center; padding: 48px; color: #888; }
+    .spinner { display: inline-block; width: 20px; height: 20px; border: 3px solid #e0e0e0; border-top-color: #764ba2; border-radius: 50%; animation: spin 0.8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Receipt Detail Modal */
+    .modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 200; align-items: center; justify-content: center; }
+    .modal-overlay.show { display: flex; }
+    .modal { background: white; border-radius: 16px; padding: 32px; max-width: 600px; width: 90%; max-height: 80vh; overflow-y: auto; }
+    .modal h3 { margin-bottom: 16px; }
+    .modal .close { float: right; background: none; border: none; font-size: 1.5rem; cursor: pointer; color: #888; }
+    .modal table { width: 100%; border-collapse: collapse; margin-top: 16px; }
+    .modal th { text-align: left; padding: 8px; border-bottom: 2px solid #e0e0e0; font-size: 0.8rem; color: #888; }
+    .modal td { padding: 8px; border-bottom: 1px solid #f0f0f0; font-size: 0.9rem; }
+  </style>
+</head>
+<body>
+
+<!-- AUTH SCREEN -->
+<div class="auth-screen" id="authScreen">
+  <div class="auth-box" id="loginBox">
+    <h1>📸 SnapReceipt</h1>
+    <p>Track every dollar you spend</p>
+    <div id="loginForm">
+      <input type="text" id="loginKey" placeholder="Enter your API key" autocomplete="off">
+      <button onclick="login()">Sign In</button>
+      <div class="toggle" onclick="showSignup()">Don't have an account? Sign up free</div>
+    </div>
+    <div id="signupForm" style="display:none">
+      <input type="text" id="signupName" placeholder="Your name">
+      <input type="email" id="signupEmail" placeholder="Your email">
+      <button onclick="signup()">Create Free Account</button>
+      <div class="toggle" onclick="showLogin()">Already have an account? Sign in</div>
+    </div>
+    <div id="authMsg"></div>
+    <div id="apiKeyDisplay" style="display:none;margin-top:16px;padding:20px;background:#f0fff4;border:2px solid #38a169;border-radius:8px;text-align:left">
+      <p style="color:#276749;font-weight:600;margin-bottom:8px">✅ Account created! Save your API key:</p>
+      <input type="text" id="apiKeyValue" readonly style="background:#fff;border:2px solid #38a169;font-family:monospace;font-size:0.9rem;cursor:text;margin-bottom:8px">
+      <button onclick="copyApiKey()" style="background:#38a169;padding:10px;font-size:0.9rem">📋 Copy Key</button>
+      <button onclick="enterApp()" style="background:#764ba2;padding:10px;font-size:0.9rem;margin-top:8px">Open App →</button>
+      <p style="color:#e53e3e;font-size:0.8rem;margin-top:8px">⚠️ Save this key now — you won't see it again!</p>
+    </div>
+  </div>
+</div>
+
+<!-- APP -->
+<div class="app" id="app">
+  <div class="topbar">
+    <span class="logo">📸 SnapReceipt</span>
+    <div>
+      <nav style="display:inline">
+        <a href="#" class="active" data-page="scan">Scan</a>
+        <a href="#" data-page="receipts">Receipts</a>
+        <a href="#" data-page="spending">Spending</a>
+        <a href="#" data-page="help">Help</a>
+      </nav>
+      <span class="logout" onclick="logout()">Sign Out</span>
+    </div>
+  </div>
+
+  <div class="container">
+    <!-- SCAN PAGE -->
+    <div class="page active" id="page-scan">
+      <h2 style="margin-bottom:16px">Scan a Receipt</h2>
+      <div id="scanCounter" style="background:white;border-radius:12px;padding:16px 20px;box-shadow:0 1px 3px rgba(0,0,0,0.08);margin-bottom:16px;display:flex;justify-content:space-between;align-items:center">
+        <span id="scanCountText" style="font-size:0.95rem;color:#555">Loading...</span>
+        <div id="scanCountBar" style="flex:1;max-width:200px;margin:0 16px;height:8px;background:#e0e0e0;border-radius:4px;overflow:hidden"><div id="scanCountFill" style="height:100%;background:#764ba2;border-radius:4px;width:0%;transition:width 0.3s"></div></div>
+      </div>
+      <div id="upgradePrompt" style="display:none;background:#fff5f5;border:2px solid #e53e3e;border-radius:12px;padding:24px;text-align:center;margin-bottom:16px">
+        <p style="font-size:1.1rem;font-weight:600;color:#c53030;margin-bottom:8px">🚫 You've used all 20 free scans this month</p>
+        <p style="color:#555;margin-bottom:16px">Upgrade to Pro for unlimited scans — just £5/month</p>
+        <a href="https://buy.stripe.com/7sYaEZfE6gUO4MA0Wq1sQ00" id="upgradeBtn" style="display:inline-block;background:#764ba2;color:white;padding:12px 32px;border-radius:8px;text-decoration:none;font-weight:600">Upgrade to Pro →</a>
+      </div>
+      <div class="upload-area" id="uploadArea" onclick="document.getElementById('fileInput').click()">
+        <div class="icon">📸</div>
+        <p><strong>Click to select</strong> or drag a receipt photo here</p>
+        <p style="font-size:0.85rem; margin-top:8px">JPG or PNG, up to 10MB</p>
+        <input type="file" id="fileInput" accept="image/jpeg,image/png" onchange="handleFile(this.files[0])">
+      </div>
+      <div id="scanResult" style="display:none"></div>
+    </div>
+
+    <!-- RECEIPTS PAGE -->
+    <div class="page" id="page-receipts">
+      <h2 style="margin-bottom:16px">Your Receipts</h2>
+      <div id="receiptsList"><div class="empty"><div class="spinner"></div></div></div>
+    </div>
+
+    <!-- SPENDING PAGE -->
+    <div class="page" id="page-spending">
+      <h2 style="margin-bottom:16px">Spending Overview</h2>
+      <div style="margin-bottom:20px">
+        <label style="font-size:0.9rem;color:#555;margin-right:8px">Month:</label>
+        <select id="spendingMonth" onchange="loadSpending()" style="padding:8px 12px;border:2px solid #e0e0e0;border-radius:8px;font-size:0.9rem"></select>
+      </div>
+      <div class="stat-row" id="spendingStats"></div>
+      <div class="chart-card">
+        <h3>Spending by Category</h3>
+        <canvas id="categoryChart" height="100"></canvas>
+      </div>
+      <div class="chart-card">
+        <h3>Monthly Trend</h3>
+        <canvas id="trendChart" height="80"></canvas>
+      </div>
+    </div>
+    </div>
+
+    <!-- HELP PAGE -->
+    <div class="page" id="page-help">
+      <h2 style="margin-bottom:24px">Help & Support</h2>
+
+      <div style="background:white;border-radius:12px;padding:24px;box-shadow:0 1px 3px rgba(0,0,0,0.08);margin-bottom:24px">
+        <h3 style="margin-bottom:16px">📖 How to Use SnapReceipt</h3>
+        <div style="color:#555;line-height:1.8">
+          <p><strong>1. Scan a receipt:</strong> Go to the Scan tab, click the upload area or drag a receipt photo. We accept JPG and PNG up to 10MB. Our AI reads the store, date, items, and total automatically.</p>
+          <p style="margin-top:12px"><strong>2. View your receipts:</strong> Go to the Receipts tab to see all your scanned receipts. Click any receipt to see the full details and original image.</p>
+          <p style="margin-top:12px"><strong>3. Track spending:</strong> Go to the Spending tab to see monthly summaries, category breakdowns, and 6-month trends. Use the month dropdown to view past months.</p>
+          <p style="margin-top:12px"><strong>4. Free plan:</strong> You get 20 free scans per month. The counter resets on the 1st of each month. Upgrade to Pro (£5/month) for unlimited scans.</p>
+        </div>
+      </div>
+
+      <div style="background:white;border-radius:12px;padding:24px;box-shadow:0 1px 3px rgba(0,0,0,0.08);margin-bottom:24px">
+        <h3 style="margin-bottom:16px">💡 Tips</h3>
+        <div style="color:#555;line-height:1.8">
+          <p>• Take photos in good lighting with the full receipt visible</p>
+          <p>• Avoid crumpled or folded receipts — flatten them first</p>
+          <p>• Both printed and digital receipts work</p>
+          <p>• The AI detects currency automatically (£, €, $, etc.)</p>
+          <p>• Receipts are categorized automatically based on the store name</p>
+        </div>
+      </div>
+
+      <div style="background:white;border-radius:12px;padding:24px;box-shadow:0 1px 3px rgba(0,0,0,0.08);margin-bottom:24px">
+        <h3 style="margin-bottom:16px">📬 Contact Us</h3>
+        <div style="color:#555;line-height:1.8">
+          <p>Having trouble? Got feedback? We'd love to hear from you.</p>
+          <p style="margin-top:12px"><strong>Email:</strong> <a href="mailto:support@zonovra.com" style="color:#764ba2">support@zonovra.com</a></p>
+          <p style="margin-top:8px">We typically respond within 24 hours.</p>
+        </div>
+      </div>
+
+      <div style="background:white;border-radius:12px;padding:24px;box-shadow:0 1px 3px rgba(0,0,0,0.08)">
+        <h3 style="margin-bottom:16px">❓ FAQ</h3>
+        <div style="color:#555;line-height:1.8">
+          <p><strong>Is my data private?</strong><br>Yes. Your receipts are stored securely and encrypted. We never sell or share your data.</p>
+          <p style="margin-top:12px"><strong>What happens if the AI reads something wrong?</strong><br>You can delete the receipt and re-scan it. AI accuracy improves with clear, well-lit photos.</p>
+          <p style="margin-top:12px"><strong>Can I use this on my phone?</strong><br>Yes. Open the app in your phone's browser, take a photo directly, and upload it.</p>
+          <p style="margin-top:12px"><strong>What currencies are supported?</strong><br>We detect GBP (£), EUR (€), USD ($), JPY (¥), INR (₹), and many more automatically from the receipt.</p>
+          <p style="margin-top:12px"><strong>I lost my API key. How do I get it back?</strong><br>Email us at support@zonovra.com with the email you signed up with and we'll help you recover access.</p>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- RECEIPT DETAIL MODAL -->
+<div class="modal-overlay" id="modal">
+  <div class="modal">
+    <button class="close" onclick="closeModal()">&times;</button>
+    <div id="modalContent"></div>
+  </div>
+</div>
+
+<script>
+var API_URL = 'https://wrirb3mgo3.execute-api.eu-west-1.amazonaws.com';
+var apiKey = '';
+var categoryChart = null;
+var trendChart = null;
+
+// ==================== AUTH ====================
+function showSignup() { document.getElementById('loginForm').style.display='none'; document.getElementById('signupForm').style.display='block'; document.getElementById('authMsg').innerHTML=''; }
+function showLogin() { document.getElementById('signupForm').style.display='none'; document.getElementById('loginForm').style.display='block'; document.getElementById('authMsg').innerHTML=''; }
+
+function signup() {
+  var name = document.getElementById('signupName').value.trim();
+  var email = document.getElementById('signupEmail').value.trim();
+  if (!name || !email) { document.getElementById('authMsg').innerHTML='<div class="error">Please fill in both fields</div>'; return; }
+
+  fetch(API_URL + '/signup', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({name: name, email: email})
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    if (data.api_key) {
+      apiKey = data.api_key;
+      localStorage.setItem('sr_api_key', apiKey);
+      document.getElementById('signupForm').style.display = 'none';
+      document.getElementById('authMsg').innerHTML = '';
+      document.getElementById('apiKeyValue').value = data.api_key;
+      document.getElementById('apiKeyDisplay').style.display = 'block';
+    } else {
+      document.getElementById('authMsg').innerHTML = '<div class="error">' + (data.detail || 'Signup failed') + '</div>';
+    }
+  });
+}
+
+function copyApiKey() {
+  var input = document.getElementById('apiKeyValue');
+  input.select();
+  document.execCommand('copy');
+  alert('API key copied!');
+}
+
+function enterApp() { showApp(); }
+
+function login() {
+  apiKey = document.getElementById('loginKey').value.trim();
+  if (!apiKey) { document.getElementById('authMsg').innerHTML='<div class="error">Please enter your API key</div>'; return; }
+
+  fetch(API_URL + '/receipts?limit=1', { headers: {'X-API-Key': apiKey} })
+  .then(function(r) { if (!r.ok) throw new Error(); return r.json(); })
+  .then(function() { localStorage.setItem('sr_api_key', apiKey); showApp(); })
+  .catch(function() { document.getElementById('authMsg').innerHTML='<div class="error">Invalid API key</div>'; });
+}
+
+function logout() {
+  localStorage.removeItem('sr_api_key');
+  apiKey = '';
+  document.getElementById('authScreen').style.display = 'flex';
+  document.getElementById('app').style.display = 'none';
+}
+
+function showApp() {
+  document.getElementById('authScreen').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+  buildMonthSelector();
+  loadUserInfo();
+  loadReceipts();
+  loadSpending();
+}
+
+// ==================== FILE UPLOAD ====================
+var uploadArea = document.getElementById('uploadArea');
+if (uploadArea) {
+  uploadArea.addEventListener('dragover', function(e) { e.preventDefault(); uploadArea.classList.add('dragging'); });
+  uploadArea.addEventListener('dragleave', function() { uploadArea.classList.remove('dragging'); });
+  uploadArea.addEventListener('drop', function(e) { e.preventDefault(); uploadArea.classList.remove('dragging'); if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]); });
+}
+
+function handleFile(file) {
+  if (!file) return;
+  if (!file.type.match('image/(jpeg|png)')) { alert('Please select a JPG or PNG image'); return; }
+  if (file.size > 10 * 1024 * 1024) { alert('Image too large (max 10MB)'); return; }
+
+  // Check if user can scan before uploading
+  var counter = document.getElementById('scanCountText');
+  if (counter && counter.dataset.remaining === '0') {
+    alert('You have used all 20 free scans this month. Upgrade to Pro for unlimited scans.');
+    return;
+  }
+
+  var area = document.getElementById('uploadArea');
+  area.innerHTML = '<div class="icon">⏳</div><p class="processing">Scanning receipt...</p><div class="spinner" style="margin-top:12px"></div>';
+
+  // Step 1: Get presigned upload URL
+  fetch(API_URL + '/receipts/upload-url', { method: 'POST', headers: {'X-API-Key': apiKey} })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    var uploadUrl = data.upload_url;
+    var imageKey = data.image_key;
+
+    // Step 2: Upload to S3
+    return fetch(uploadUrl, { method: 'PUT', headers: {'Content-Type': 'image/jpeg'}, body: file })
+    .then(function() { return imageKey; });
+  })
+  .then(function(imageKey) {
+    // Step 3: Process
+    return fetch(API_URL + '/receipts/process', {
+      method: 'POST',
+      headers: {'X-API-Key': apiKey, 'Content-Type': 'application/json'},
+      body: JSON.stringify({image_key: imageKey})
+    }).then(function(r) { return r.json(); });
+  })
+  .then(function(receipt) {
+    resetUploadArea();
+    showScanResult(receipt);
+    loadReceipts();
+    loadSpending();
+    loadUserInfo();
+  })
+  .catch(function(err) {
+    resetUploadArea();
+    alert('Error scanning receipt: ' + err.message);
+  });
+}
+
+function resetUploadArea() {
+  var area = document.getElementById('uploadArea');
+  area.innerHTML = '<div class="icon">📸</div><p><strong>Click to select</strong> or drag a receipt photo here</p><p style="font-size:0.85rem;margin-top:8px">JPG or PNG, up to 10MB</p><input type="file" id="fileInput" accept="image/jpeg,image/png" onchange="handleFile(this.files[0])">';
+}
+
+function showScanResult(r) {
+  var items = r.items.map(function(i) { return '<tr><td>' + i.name + '</td><td>' + i.quantity + '</td><td>' + r.currency + ' ' + i.price.toFixed(2) + '</td></tr>'; }).join('');
+  document.getElementById('scanResult').style.display = 'block';
+  document.getElementById('scanResult').innerHTML =
+    '<div class="receipt-card" style="flex-direction:column;align-items:stretch">' +
+    '<h3>✅ Receipt Scanned</h3>' +
+    '<p><strong>' + r.store_name + '</strong> — ' + r.date + ' — <span class="cat ' + r.category + '">' + r.category + '</span></p>' +
+    '<table><thead><tr><th>Item</th><th>Qty</th><th>Price</th></tr></thead><tbody>' + items + '</tbody></table>' +
+    '<p style="margin-top:12px;font-size:1.2rem;font-weight:700">Total: ' + r.currency + ' ' + r.total.toFixed(2) + '</p></div>';
+}
+</script>
+
+<script>
+// ==================== USER INFO & SCAN COUNTER ====================
+function loadUserInfo() {
+  fetch(API_URL + '/me', { headers: {'X-API-Key': apiKey} })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    var text = document.getElementById('scanCountText');
+    var fill = document.getElementById('scanCountFill');
+    var prompt = document.getElementById('upgradePrompt');
+    var upload = document.getElementById('uploadArea');
+
+    if (data.plan === 'pro') {
+      text.textContent = '✅ Pro plan — unlimited scans';
+      text.dataset.remaining = '-1';
+      fill.style.width = '100%';
+      fill.style.background = '#38a169';
+      prompt.style.display = 'none';
+      upload.style.display = 'block';
+    } else {
+      var used = data.scans_this_month;
+      var limit = data.scans_limit;
+      var remaining = data.scans_remaining;
+      var pct = Math.min(100, Math.round((used / limit) * 100));
+
+      text.textContent = used + ' of ' + limit + ' free scans used this month (' + remaining + ' remaining)';
+      text.dataset.remaining = String(remaining);
+      fill.style.width = pct + '%';
+
+      if (pct >= 100) {
+        fill.style.background = '#e53e3e';
+        prompt.style.display = 'block';
+        upload.style.display = 'none';
+      } else if (pct >= 75) {
+        fill.style.background = '#d69e2e';
+        prompt.style.display = 'none';
+        upload.style.display = 'block';
+      } else {
+        fill.style.background = '#764ba2';
+        prompt.style.display = 'none';
+        upload.style.display = 'block';
+      }
+    }
+  });
+}
+
+// ==================== RECEIPTS LIST ====================
+function loadReceipts() {
+  fetch(API_URL + '/receipts?limit=50', { headers: {'X-API-Key': apiKey} })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    var el = document.getElementById('receiptsList');
+    if (!data.length) { el.innerHTML = '<div class="empty">No receipts yet. Scan your first one!</div>'; return; }
+    el.innerHTML = data.map(function(r) {
+      return '<div class="receipt-card" onclick="showReceipt(\'' + r.receipt_id + '\')" style="cursor:pointer">' +
+        '<div class="info"><h4>' + r.store_name + '</h4><div class="meta">' + r.date + '</div></div>' +
+        '<div class="right"><div class="amount">' + r.currency + ' ' + parseFloat(r.total).toFixed(2) + '</div>' +
+        '<span class="cat ' + r.category + '">' + r.category + '</span></div></div>';
+    }).join('');
+  });
+}
+
+function showReceipt(id) {
+  fetch(API_URL + '/receipts/' + id, { headers: {'X-API-Key': apiKey} })
+  .then(function(r) { return r.json(); })
+  .then(function(r) {
+    var items = (r.items || []).map(function(i) {
+      return '<tr><td>' + i.name + '</td><td>' + i.quantity + '</td><td>' + r.currency + ' ' + i.price.toFixed(2) + '</td></tr>';
+    }).join('');
+    document.getElementById('modalContent').innerHTML =
+      '<h3>' + r.store_name + '</h3>' +
+      '<p>' + r.date + ' — <span class="cat ' + r.category + '">' + r.category + '</span></p>' +
+      '<table><thead><tr><th>Item</th><th>Qty</th><th>Price</th></tr></thead><tbody>' + items + '</tbody></table>' +
+      '<p style="margin-top:16px;font-size:1.3rem;font-weight:700">Total: ' + r.currency + ' ' + parseFloat(r.total).toFixed(2) + '</p>' +
+      (r.image_url ? '<p style="margin-top:12px"><a href="' + r.image_url + '" target="_blank">View original image</a></p>' : '') +
+      '<button onclick="deleteReceipt(\'' + r.receipt_id + '\')" style="margin-top:16px;padding:8px 20px;background:#e53e3e;color:white;border:none;border-radius:8px;cursor:pointer">Delete Receipt</button>';
+    document.getElementById('modal').classList.add('show');
+  });
+}
+
+function deleteReceipt(id) {
+  if (!confirm('Delete this receipt?')) return;
+  fetch(API_URL + '/receipts/' + id, { method: 'DELETE', headers: {'X-API-Key': apiKey} })
+  .then(function() { closeModal(); loadReceipts(); loadSpending(); });
+}
+
+function closeModal() { document.getElementById('modal').classList.remove('show'); }
+document.getElementById('modal').addEventListener('click', function(e) { if (e.target === this) closeModal(); });
+
+// ==================== SPENDING ====================
+function buildMonthSelector() {
+  var sel = document.getElementById('spendingMonth');
+  if (!sel) return;
+  var now = new Date();
+  var options = '';
+  for (var i = 0; i < 12; i++) {
+    var d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    var val = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0');
+    var label = d.toLocaleString('default', {month:'long', year:'numeric'});
+    options += '<option value="' + val + '">' + label + '</option>';
+  }
+  sel.innerHTML = options;
+}
+
+function loadSpending() {
+  var sel = document.getElementById('spendingMonth');
+  var selected = sel ? sel.value : '';
+  var now = new Date();
+  var year = selected ? parseInt(selected.split('-')[0]) : now.getFullYear();
+  var month = selected ? parseInt(selected.split('-')[1]) : (now.getMonth()+1);
+
+  fetch(API_URL + '/spending/summary?year=' + year + '&month=' + month, { headers: {'X-API-Key': apiKey} })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    document.getElementById('spendingStats').innerHTML =
+      '<div class="stat-card"><div class="label">This Month</div><div class="value">' + data.currency + ' ' + data.total.toFixed(2) + '</div></div>' +
+      '<div class="stat-card"><div class="label">Receipts</div><div class="value">' + data.receipt_count + '</div></div>' +
+      '<div class="stat-card"><div class="label">Top Category</div><div class="value">' + (Object.keys(data.by_category)[0] || '—') + '</div></div>';
+
+    // Category chart
+    var cats = Object.keys(data.by_category);
+    var vals = cats.map(function(c) { return data.by_category[c]; });
+    var colors = ['#764ba2','#667eea','#38a169','#d69e2e','#e53e3e','#3182ce','#d53f8c','#718096'];
+    if (categoryChart) categoryChart.destroy();
+    if (cats.length > 0) {
+      categoryChart = new Chart(document.getElementById('categoryChart'), {
+        type: 'doughnut',
+        data: { labels: cats, datasets: [{ data: vals, backgroundColor: colors.slice(0, cats.length) }] },
+        options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
+      });
+    }
+  });
+
+  fetch(API_URL + '/spending/trends?months=6', { headers: {'X-API-Key': apiKey} })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    var labels = data.map(function(d) { return d.month; });
+    var values = data.map(function(d) { return d.total; });
+    if (trendChart) trendChart.destroy();
+    trendChart = new Chart(document.getElementById('trendChart'), {
+      type: 'bar',
+      data: { labels: labels, datasets: [{ label: 'Monthly Spending', data: values, backgroundColor: '#764ba2', borderRadius: 6 }] },
+      options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+    });
+  });
+}
+
+// ==================== NAVIGATION ====================
+document.querySelectorAll('.topbar nav a').forEach(function(link) {
+  link.addEventListener('click', function(e) {
+    e.preventDefault();
+    document.querySelectorAll('.topbar nav a').forEach(function(l) { l.classList.remove('active'); });
+    link.classList.add('active');
+    document.querySelectorAll('.page').forEach(function(p) { p.classList.remove('active'); });
+    document.getElementById('page-' + link.dataset.page).classList.add('active');
+    if (link.dataset.page === 'receipts') loadReceipts();
+    if (link.dataset.page === 'spending') loadSpending();
+  });
+});
+
+// ==================== AUTO-LOGIN ====================
+window.addEventListener('DOMContentLoaded', function() {
+  var saved = localStorage.getItem('sr_api_key');
+  if (saved) {
+    apiKey = saved;
+    fetch(API_URL + '/receipts?limit=1', { headers: {'X-API-Key': apiKey} })
+    .then(function(r) { if (!r.ok) throw new Error(); return r.json(); })
+    .then(function() { showApp(); })
+    .catch(function() { localStorage.removeItem('sr_api_key'); });
+  }
+});
+</script>
+</body>
+</html>

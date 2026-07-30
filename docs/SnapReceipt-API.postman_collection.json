@@ -1,0 +1,354 @@
+{
+  "info": {
+    "name": "SnapReceipt API",
+    "description": "Complete API collection for SnapReceipt — AI-powered receipt scanning and expense tracking.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "https://wrirb3mgo3.execute-api.eu-west-1.amazonaws.com",
+      "type": "string"
+    },
+    {
+      "key": "api_key",
+      "value": "rt_U9Yeb8r5myIcUXHERRKVSK9jjdvq12ijOL_G6KVKDuk",
+      "type": "string"
+    },
+    {
+      "key": "receipt_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "upload_url",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "image_key",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "auth": {
+    "type": "apikey",
+    "apikey": [
+      {
+        "key": "key",
+        "value": "X-API-Key",
+        "type": "string"
+      },
+      {
+        "key": "value",
+        "value": "{{api_key}}",
+        "type": "string"
+      },
+      {
+        "key": "in",
+        "value": "header",
+        "type": "string"
+      }
+    ]
+  },
+  "item": [
+    {
+      "name": "System",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/health",
+              "host": ["{{base_url}}"],
+              "path": ["health"]
+            },
+            "description": "Public health check — no API key required."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Signup",
+      "item": [
+        {
+          "name": "Sign Up (New User)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.api_key) {",
+                  "    pm.collectionVariables.set('api_key', jsonData.api_key);",
+                  "    console.log('API key saved: ' + jsonData.api_key);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"yourname@example.com\",\n  \"name\": \"Your Name\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/signup",
+              "host": ["{{base_url}}"],
+              "path": ["signup"]
+            },
+            "description": "Create a new account. Returns user_id, api_key, and plan info.\n\nThe api_key is automatically saved to the collection variable for use in subsequent requests."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Receipts",
+      "item": [
+        {
+          "name": "Upload Receipt (Image)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.receipt_id) {",
+                  "    pm.collectionVariables.set('receipt_id', jsonData.receipt_id);",
+                  "    console.log('Receipt ID saved: ' + jsonData.receipt_id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "",
+                  "description": "Select a receipt image (JPG, PNG). Max 10MB."
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/receipts",
+              "host": ["{{base_url}}"],
+              "path": ["receipts"]
+            },
+            "description": "Upload a receipt image directly (small files under ~4MB).\n\nFor larger files, use the 2-step flow:\n1. POST /receipts/upload-url → get presigned S3 URL\n2. PUT image to that URL\n3. POST /receipts/process with the image_key\n\nFree plan: 20 scans/month. Pro plan: unlimited."
+          }
+        },
+        {
+          "name": "Step 1: Get Upload URL (Large Files)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.upload_url) {",
+                  "    pm.collectionVariables.set('upload_url', jsonData.upload_url);",
+                  "    pm.collectionVariables.set('image_key', jsonData.image_key);",
+                  "    console.log('Upload URL and image_key saved');",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/receipts/upload-url",
+              "host": ["{{base_url}}"],
+              "path": ["receipts", "upload-url"]
+            },
+            "description": "Get a presigned S3 URL for uploading large receipt images (up to 10MB).\n\nReturns upload_url and image_key. Both are auto-saved to collection variables.\n\nNext step: PUT your image to the upload_url (see 'Step 2')."
+          }
+        },
+        {
+          "name": "Step 2: Upload Image to S3",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "image/jpeg"
+              }
+            ],
+            "body": {
+              "mode": "file",
+              "file": {
+                "src": ""
+              }
+            },
+            "url": {
+              "raw": "{{upload_url}}",
+              "host": ["{{upload_url}}"]
+            },
+            "description": "Upload the receipt image directly to S3 using the presigned URL from Step 1.\n\nIn Postman: Body tab → select 'binary' → choose your image file.\n\nExpected response: 200 OK (empty body).\n\nNext step: POST /receipts/process with the image_key."
+          }
+        },
+        {
+          "name": "Step 3: Process Uploaded Receipt",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.receipt_id) {",
+                  "    pm.collectionVariables.set('receipt_id', jsonData.receipt_id);",
+                  "    console.log('Receipt ID saved: ' + jsonData.receipt_id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"image_key\": \"{{image_key}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/receipts/process",
+              "host": ["{{base_url}}"],
+              "path": ["receipts", "process"]
+            },
+            "description": "Process a receipt image that was uploaded to S3 via the presigned URL.\n\nUses the image_key from Step 1 (auto-saved).\n\nTextract extracts store, date, items, total, and auto-categorizes the receipt."
+          }
+        },
+        {
+          "name": "List All Receipts",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/receipts?limit=50",
+              "host": ["{{base_url}}"],
+              "path": ["receipts"],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "50",
+                  "description": "Max number of receipts to return (default: 50)"
+                }
+              ]
+            },
+            "description": "List all your receipts, sorted by date (newest first). Each receipt includes a presigned URL to view the original image."
+          }
+        },
+        {
+          "name": "Get Single Receipt",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/receipts/{{receipt_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["receipts", "{{receipt_id}}"]
+            },
+            "description": "Get a single receipt by ID. Returns all extracted data plus a presigned URL to view the original image."
+          }
+        },
+        {
+          "name": "Delete Receipt",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/receipts/{{receipt_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["receipts", "{{receipt_id}}"]
+            },
+            "description": "Delete a receipt. This removes the receipt data from the database. The image remains in S3."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Spending Analytics",
+      "item": [
+        {
+          "name": "Monthly Spending Summary",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/spending/summary?year=2026&month=4",
+              "host": ["{{base_url}}"],
+              "path": ["spending", "summary"],
+              "query": [
+                {
+                  "key": "year",
+                  "value": "2026",
+                  "description": "Year (default: current year)"
+                },
+                {
+                  "key": "month",
+                  "value": "4",
+                  "description": "Month 1-12 (default: current month)"
+                }
+              ]
+            },
+            "description": "Get spending summary for a specific month.\n\nReturns:\n- Total spent\n- Breakdown by category (Groceries, Restaurant, Transport, etc.)\n- Breakdown by store\n- Number of receipts"
+          }
+        },
+        {
+          "name": "Spending Trends (6 months)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/spending/trends?months=6",
+              "host": ["{{base_url}}"],
+              "path": ["spending", "trends"],
+              "query": [
+                {
+                  "key": "months",
+                  "value": "6",
+                  "description": "Number of months to look back (default: 6)"
+                }
+              ]
+            },
+            "description": "Get monthly spending totals for the last N months. Useful for seeing spending trends over time."
+          }
+        }
+      ]
+    }
+  ]
+}
